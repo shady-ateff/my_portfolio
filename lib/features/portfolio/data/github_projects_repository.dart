@@ -26,19 +26,20 @@ class GithubProjectsRepository implements ProjectsRepository {
           repositoryUrl: json['html_url'],
           topics: List<String>.from(json['topics'] ?? []),
           language: json['language'],
-          // For now, if the project is "sapos" or "CareSync", let's mock a liveUrl for testing the iframe
-          liveBuildUrl: _getMockLiveUrl(json['name']),
+          // Use GitHub's homepage field as the live url (if the user provided one)
+          liveBuildUrl: _parseHomepage(json['homepage']),
         );
-      }).where((p) => p.topics.contains('portfolio-project') || p.name.toLowerCase() == 'sapos' || p.name.toLowerCase() == 'taskati').toList();
+      }).take(10).toList();
     } else {
       throw Exception('Failed to load projects');
     }
   }
 
-  String? _getMockLiveUrl(String name) {
-    // dart.dev and flutter.dev block iframes. Using example.com for testing iframe rendering.
-    if (name.toLowerCase().contains('sapos')) return 'https://example.com';
-    if (name.toLowerCase().contains('taskati')) return 'https://example.com';
-    return null;
+  String? _parseHomepage(dynamic homepage) {
+    if (homepage == null) return null;
+    final str = homepage.toString().trim();
+    if (str.isEmpty) return null;
+    if (!str.startsWith('http')) return 'https://$str';
+    return str;
   }
 }

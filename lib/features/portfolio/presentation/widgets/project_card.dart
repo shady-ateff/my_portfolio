@@ -41,7 +41,7 @@ class _ProjectCardState extends State<ProjectCard> {
           curve: Curves.easeOutCubic,
           width: 300,
           transform: Matrix4.identity()
-            ..translate(0.0, _isHovered ? -10.0 : 0.0, 0.0),
+            ..setTranslationRaw(0.0, _isHovered ? -10.0 : 0.0, 0.0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
             border: Border.all(

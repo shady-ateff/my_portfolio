@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import '../widgets/mobile_3d_frame/mobile_3d_frame.dart';
 import '../widgets/particle_background.dart';
-import '../widgets/project_card.dart';
 import '../widgets/animated_skill_chip.dart';
 import 'package:my_portfolio/l10n/app_localizations.dart' as l10n;
-import '../portfolio_cubit.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,10 +15,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
-  String? _activeProjectUrl;
-
-  void _openProject(String url) => setState(() => _activeProjectUrl = url);
-  void _closeProject() => setState(() => _activeProjectUrl = null);
 
   @override
   void dispose() {
@@ -36,27 +29,16 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isActive = _activeProjectUrl != null;
-    final double screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       backgroundColor: _bg,
       body: Stack(
         children: [
-          // 3D Background
-          Positioned.fill(
-            child: Mobile3DFrameWidget(
-              scrollController: _scrollController,
-              activeProjectUrl: _activeProjectUrl,
-              onCloseProject: _closeProject,
-            ),
-          ),
-
-          // Particle overlay
+          // Particle overlay (always visible now since we don't have a background phone)
           Positioned.fill(
             child: IgnorePointer(
               child: AnimatedOpacity(
-                opacity: isActive ? 0.0 : 1.0,
+                opacity: 1.0,
                 duration: const Duration(milliseconds: 600),
                 child: const ParticleBackground(),
               ),
@@ -64,30 +46,17 @@ class _HomePageState extends State<HomePage> {
           ),
 
           // Main scrollable content
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 800),
-            curve: Curves.easeInOutCubic,
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: isActive ? screenWidth * 0.62 : screenWidth,
-            child: IgnorePointer(
-              ignoring: isActive,
-              child: AnimatedOpacity(
-                opacity: isActive ? 0.15 : 1.0,
-                duration: const Duration(milliseconds: 400),
-                child: ListView(
-                  controller: _scrollController,
-                  children: [
-                    _buildHeroSection(context),
-                    _buildAboutSection(context),
-                    _buildSkillsSection(context),
-                    _buildProjectsSection(context),
-                    _buildContactSection(context),
-                    const SizedBox(height: 80),
-                  ],
-                ),
-              ),
+          Positioned.fill(
+            child: ListView(
+              controller: _scrollController,
+              children: [
+                _buildHeroSection(context),
+                _buildAboutSection(context),
+                _buildSkillsSection(context),
+                _buildProjectsSection(context), // Phone will be inside here
+                _buildContactSection(context),
+                const SizedBox(height: 80),
+              ],
             ),
           ),
         ],
@@ -104,6 +73,20 @@ class _HomePageState extends State<HomePage> {
       height: size.height,
       child: Stack(
         children: [
+          // Aurora glow blobs behind everything
+          Positioned(
+            top: -120, left: -100,
+            child: _buildAuroraBlob(500, _cyan, 0.06),
+          ),
+          Positioned(
+            top: 100, right: -150,
+            child: _buildAuroraBlob(600, _purple, 0.07),
+          ),
+          Positioned(
+            bottom: -80, left: size.width * 0.3,
+            child: _buildAuroraBlob(400, _green, 0.04),
+          ),
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 60),
             child: Row(
@@ -126,14 +109,14 @@ class _HomePageState extends State<HomePage> {
                         child: Text(
                           localizations?.appTitle ?? 'Shady Atef',
                           style: const TextStyle(
-                            fontSize: 70,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 76,
+                            fontWeight: FontWeight.w900,
                             color: Colors.white,
-                            letterSpacing: -1.5,
-                            height: 1.05,
+                            letterSpacing: -2,
+                            height: 1.0,
                           ),
                         ),
-                      ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.15),
+                      ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
 
                       const SizedBox(height: 18),
 
@@ -243,6 +226,25 @@ class _HomePageState extends State<HomePage> {
             ).animate().fadeIn(delay: 1000.ms),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Decorative aurora glow blob for the hero background
+  Widget _buildAuroraBlob(double size, Color color, double opacity) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            // ignore: deprecated_member_use
+            color.withOpacity(opacity),
+            // ignore: deprecated_member_use
+            color.withOpacity(0),
+          ],
+        ),
       ),
     );
   }
@@ -635,57 +637,29 @@ class _HomePageState extends State<HomePage> {
 
   // ── PROJECTS ──────────────────────────────────────────────────────────────
   Widget _buildProjectsSection(BuildContext context) {
-    const accentColors = [
-      _cyan,
-      _purple,
-      _green,
-      Color(0xFFFF6B6B),
-      Color(0xFFFFCA28),
-      Color(0xFF26C6DA),
-    ];
-
+    final size = MediaQuery.of(context).size;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 90),
+      height: size.height * 1.1, // Full-screen-ish for the phone
+      padding: const EdgeInsets.fromLTRB(60, 40, 60, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionHeader('Projects', "WHAT I'VE BUILT"),
-          const SizedBox(height: 56),
-          BlocBuilder<PortfolioCubit, PortfolioState>(
-            builder: (context, state) {
-              if (state is PortfolioLoading) {
-                return const Center(
-                    child: CircularProgressIndicator(color: _cyan));
-              } else if (state is PortfolioError) {
-                return Center(
-                  child: Text('Error: ${state.message}',
-                      style: const TextStyle(color: Colors.red)),
-                );
-              } else if (state is PortfolioLoaded) {
-                final projects = state.projects;
-                if (projects.isEmpty) {
-                  return const Text('No projects found.',
-                      style: TextStyle(color: Colors.white54));
-                }
-                return Wrap(
-                  spacing: 20,
-                  runSpacing: 20,
-                  children: projects.asMap().entries.map((e) {
-                    final p = e.value;
-                    return ProjectCard(
-                      title: p.name,
-                      description: p.description,
-                      url: p.liveBuildUrl ?? p.repositoryUrl,
-                      accentColor: accentColors[e.key % accentColors.length],
-                      onTap: () =>
-                          _openProject(p.liveBuildUrl ?? p.repositoryUrl),
-                      index: e.key,
-                    );
-                  }).toList(),
-                );
-              }
-              return const SizedBox();
-            },
+          const SizedBox(height: 24),
+          // Subtitle
+          const Text(
+            'Tap any project card inside the phone to launch a live preview',
+            style: TextStyle(
+              color: Color(0xFF606070),
+              fontSize: 14,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Expanded(
+            child: Mobile3DFrameWidget(
+              scrollController: _scrollController,
+            ),
           ),
         ],
       ),
@@ -807,3 +781,4 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+
