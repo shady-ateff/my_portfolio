@@ -1,0 +1,11 @@
+{
+  "@@locale": "en",
+  "appTitle": "Shady Atef",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "heroTitle": "Software Engineer | Flutter Developer",
+  "viewProjects": "View Projects",
+  "downloadCv": "Download CV",
+  "contactMe": "Contact Me"
+}
