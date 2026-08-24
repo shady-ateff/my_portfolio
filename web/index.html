@@ -29,19 +29,62 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>my_portfolio</title>
+  <title>Shady Atef | Portfolio</title>
   <link rel="manifest" href="manifest.json">
   <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
+  <style>
+    body {
+      background-color: #0A0A0F;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+    .loader-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(0, 245, 255, 0.1);
+      border-top: 3px solid #00F5FF;
+      border-right: 3px solid #7B2FFF;
+      border-radius: 50%;
+      animation: spin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .loading-text {
+      color: rgba(255, 255, 255, 0.6);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div class="loader-container">
+    <div class="spinner"></div>
+    <div class="loading-text">Loading Experience</div>
+  </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
