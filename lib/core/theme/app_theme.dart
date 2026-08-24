@@ -38,30 +38,29 @@ class AppTheme {
         ? AppColors.textDarkPrimary 
         : AppColors.textLightPrimary;
 
-    // Orbitron for display (Headings)
-    // Inter for body text (EN default, AR handled by locale later)
-    return GoogleFonts.interTextTheme().copyWith(
-      displayLarge: GoogleFonts.orbitron(
+    // Use Fira Code for a code-like developer aesthetic
+    return GoogleFonts.firaCodeTextTheme().copyWith(
+      displayLarge: GoogleFonts.firaCode(
         color: baseColor,
         fontWeight: FontWeight.bold,
       ),
-      displayMedium: GoogleFonts.orbitron(
+      displayMedium: GoogleFonts.firaCode(
         color: baseColor,
         fontWeight: FontWeight.bold,
       ),
-      displaySmall: GoogleFonts.orbitron(
+      displaySmall: GoogleFonts.firaCode(
         color: baseColor,
         fontWeight: FontWeight.bold,
       ),
-      headlineLarge: GoogleFonts.orbitron(
+      headlineLarge: GoogleFonts.firaCode(
         color: baseColor,
         fontWeight: FontWeight.w600,
       ),
-      headlineMedium: GoogleFonts.orbitron(
+      headlineMedium: GoogleFonts.firaCode(
         color: baseColor,
         fontWeight: FontWeight.w600,
       ),
-      headlineSmall: GoogleFonts.orbitron(
+      headlineSmall: GoogleFonts.firaCode(
         color: baseColor,
         fontWeight: FontWeight.w600,
       ),

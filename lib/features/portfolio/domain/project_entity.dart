@@ -7,6 +7,13 @@ class ProjectEntity {
   final String? liveBuildUrl;
   final List<String> topics;
   final String? language;
+  final List<String> packages;
+  final List<String> targetPlatforms;
+  final String? youtubeVideoId;
+  final bool isVideoLandscape;
+  final String? googlePlayUrl;
+  final String? appStoreUrl;
+  final List<String> usageTips;
 
   const ProjectEntity({
     required this.id,
@@ -17,7 +24,15 @@ class ProjectEntity {
     this.liveBuildUrl,
     required this.topics,
     this.language,
+    this.packages = const [],
+    this.targetPlatforms = const [],
+    this.youtubeVideoId,
+    this.isVideoLandscape = false,
+    this.googlePlayUrl,
+    this.appStoreUrl,
+    this.usageTips = const [],
   });
 
   bool get canExecuteLive => liveBuildUrl != null && liveBuildUrl!.isNotEmpty;
+  bool get hasVideo => youtubeVideoId != null && youtubeVideoId!.isNotEmpty;
 }

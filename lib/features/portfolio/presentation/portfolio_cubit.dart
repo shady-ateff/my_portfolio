@@ -17,11 +17,22 @@ class PortfolioLoading extends PortfolioState {}
 
 class PortfolioLoaded extends PortfolioState {
   final List<ProjectEntity> projects;
+  final ProjectEntity? selectedProject;
 
-  const PortfolioLoaded({required this.projects});
+  const PortfolioLoaded({required this.projects, this.selectedProject});
+
+  PortfolioLoaded copyWith({
+    List<ProjectEntity>? projects,
+    ProjectEntity? selectedProject,
+  }) {
+    return PortfolioLoaded(
+      projects: projects ?? this.projects,
+      selectedProject: selectedProject ?? this.selectedProject,
+    );
+  }
 
   @override
-  List<Object?> get props => [projects];
+  List<Object?> get props => [projects, selectedProject];
 }
 
 class PortfolioError extends PortfolioState {
@@ -43,7 +54,45 @@ class PortfolioCubit extends Cubit<PortfolioState> {
     emit(PortfolioLoading());
     try {
       final projects = await repository.fetchProjects();
-      emit(PortfolioLoaded(projects: projects));
+      emit(PortfolioLoaded(projects: projects, selectedProject: null));
+    } catch (e) {
+      emit(PortfolioError(e.toString()));
+    }
+  }
+
+  void selectProject(ProjectEntity project) {
+    if (state is PortfolioLoaded) {
+      final currentState = state as PortfolioLoaded;
+      if (currentState.selectedProject?.id == project.id) {
+        emit(PortfolioLoaded(projects: currentState.projects, selectedProject: null));
+      } else {
+        emit(currentState.copyWith(selectedProject: project));
+      }
+    }
+  }
+
+  Future<void> addProject(ProjectEntity project) async {
+    try {
+      await repository.addProject(project);
+      await fetchProjects();
+    } catch (e) {
+      emit(PortfolioError(e.toString()));
+    }
+  }
+
+  Future<void> updateProject(ProjectEntity project) async {
+    try {
+      await repository.updateProject(project);
+      await fetchProjects();
+    } catch (e) {
+      emit(PortfolioError(e.toString()));
+    }
+  }
+
+  Future<void> deleteProject(String id) async {
+    try {
+      await repository.deleteProject(id);
+      await fetchProjects();
     } catch (e) {
       emit(PortfolioError(e.toString()));
     }

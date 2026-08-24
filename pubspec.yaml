@@ -51,6 +51,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   http: ^1.6.0
+  pointer_interceptor: ^0.10.1+2
 
 dev_dependencies:
   flutter_test:

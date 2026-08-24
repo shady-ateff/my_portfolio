@@ -4,6 +4,9 @@ import '../domain/project_entity.dart';
 
 abstract class ProjectsRepository {
   Future<List<ProjectEntity>> fetchProjects();
+  Future<void> addProject(ProjectEntity project);
+  Future<void> updateProject(ProjectEntity project);
+  Future<void> deleteProject(String id);
 }
 
 class GithubProjectsRepository implements ProjectsRepository {
@@ -40,6 +43,20 @@ class GithubProjectsRepository implements ProjectsRepository {
     final str = homepage.toString().trim();
     if (str.isEmpty) return null;
     if (!str.startsWith('http')) return 'https://$str';
-    return str;
+  }
+
+  @override
+  Future<void> addProject(ProjectEntity project) async {
+    throw UnimplementedError('Cannot add project to GitHub repository');
+  }
+
+  @override
+  Future<void> updateProject(ProjectEntity project) async {
+    throw UnimplementedError('Cannot update project in GitHub repository');
+  }
+
+  @override
+  Future<void> deleteProject(String id) async {
+    throw UnimplementedError('Cannot delete project from GitHub repository');
   }
 }
