@@ -127,25 +127,6 @@ class _Mobile3DFrameWidgetState extends State<Mobile3DFrameWidget> {
           </div>
         ''';
       }
-
-      // Add Usage Tips if available
-      if (project.usageTips.isNotEmpty) {
-        String tipsHtml = project.usageTips
-            .map((t) => '<li style="margin-bottom:6px;">$t</li>')
-            .join('');
-        innerContent +=
-            '''
-          <div class="tips-overlay" id="tips">
-            <div class="tips-header" onclick="document.getElementById('tips').classList.toggle('expanded')">
-              <span>💡 Usage Tips</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
-            <ul class="tips-content">
-              $tipsHtml
-            </ul>
-          </div>
-        ''';
-      }
     }
 
     return innerContent;
@@ -159,23 +140,22 @@ class _Mobile3DFrameWidgetState extends State<Mobile3DFrameWidget> {
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:transparent;font-family:-apple-system,'Inter',sans-serif}
-.scene{width:100%;height:100%;display:flex;align-items:center;justify-content:center;perspective:2500px}
+.scene{width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
 
 .pw {
-  transform-style:preserve-3d;
   animation:float 6s ease-in-out infinite;
 }
 @keyframes float {
-  0% {transform: translateY(0px) rotateX(5deg) rotateY(-5deg);}
-  50% {transform: translateY(-15px) rotateX(8deg) rotateY(-2deg);}
-  100% {transform: translateY(0px) rotateX(5deg) rotateY(-5deg);}
+  0% {transform: translateY(0px);}
+  50% {transform: translateY(-15px);}
+  100% {transform: translateY(0px);}
 }
 .pw.landscape {
 }
 @keyframes float-landscape {
-  0% {transform: translateY(0px) rotateX(5deg) rotateY(-5deg);}
-  50% {transform: translateY(-15px) rotateX(8deg) rotateY(-2deg);}
-  100% {transform: translateY(0px) rotateX(5deg) rotateY(-5deg);}
+  0% {transform: translateY(0px);}
+  50% {transform: translateY(-15px);}
+  100% {transform: translateY(0px);}
 }
 .pw.landscape {
   animation: float-landscape 6s ease-in-out infinite;
@@ -188,7 +168,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:transparent;font-fam
   box-shadow:0 0 0 2px rgba(255,255,255,.10),0 0 0 4.5px rgba(0,0,0,.85),
     inset 0 1px 0 rgba(255,255,255,.13),0 0 40px rgba(0,245,255,.10),
     0 0 60px rgba(123,47,255,.08), 10px 20px 40px rgba(0,0,0,.5);
-  transform-style:preserve-3d;
   transform: rotateZ(0deg);
   transition: transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
@@ -220,55 +199,46 @@ html,body{width:100%;height:100%;overflow:hidden;background:transparent;font-fam
   width: 676px; height: 316px;
   transform: translate(-50%, -50%) rotateZ(90deg);
 }
-
-/* Tips Overlay */
-.tips-overlay {
-  position: absolute; bottom: 15px; left: 15px; right: 15px;
-  background: rgba(15, 15, 25, 0.85); backdrop-filter: blur(10px);
-  border: 1px solid rgba(0, 245, 255, 0.3);
-  border-radius: 16px; color: white;
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-  overflow: hidden; max-height: 44px; z-index: 100;
-}
-.tips-overlay.expanded {
-  max-height: 300px; background: rgba(15, 15, 25, 0.95);
-}
-.tips-header {
-  padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
-  font-weight: 600; font-size: 14px; cursor: pointer; color: #00F5FF;
-}
-.tips-content {
-  padding: 0 16px 16px 30px; font-size: 13px; color: rgba(255,255,255,0.8);
-  line-height: 1.5; opacity: 0; transition: opacity 0.3s;
-}
-.tips-overlay.expanded .tips-content {
-  opacity: 1;
-}
-.tips-overlay svg {
-  transition: transform 0.3s;
-}
-.tips-overlay.expanded svg {
-  transform: rotate(180deg);
-}
-
 </style>
 </head>
 <body>
 <div class="scene">
-  <div class="pw${isLandscape ? ' landscape' : ''}" id="pw">
-    <div class="ph${isLandscape ? ' landscape' : ''}" id="ph">
-      <div class="btn bvu"></div><div class="btn bvd"></div><div class="btn bpw"></div>
-      <div class="isl"><div class="id"></div><div class="ic"></div><div class="id"></div></div>
-      <div class="shine"></div>
-      <div class="screen" id="screen">
-        <div class="screen-content" id="screen-content">
-          $innerContent
+  <div id="scale-wrapper" style="display:flex; justify-content:center; align-items:center; width:100%; height:100%; transform-origin:center; transition: transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);">
+    <div class="pw${isLandscape ? ' landscape' : ''}" id="pw">
+      <div class="ph${isLandscape ? ' landscape' : ''}" id="ph">
+        <div class="btn bvu"></div><div class="btn bvd"></div><div class="btn bpw"></div>
+        <div class="isl"><div class="id"></div><div class="ic"></div><div class="id"></div></div>
+        <div class="shine"></div>
+        <div class="screen" id="screen">
+          <div class="screen-content" id="screen-content">
+            $innerContent
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
 <script>
+function updateScale() {
+  var pw = document.getElementById('pw');
+  if (!pw) return;
+  var isLandscape = pw.classList.contains('landscape');
+  
+  // Minimal padding to eliminate empty spaces
+  var baseWidth = isLandscape ? 730 : 370;
+  var baseHeight = isLandscape ? 370 : 730;
+  
+  var scaleX = window.innerWidth / baseWidth;
+  var scaleY = window.innerHeight / baseHeight;
+  var scale = Math.min(scaleX, scaleY);
+  
+  document.getElementById('scale-wrapper').style.transform = 'scale(' + scale + ')';
+}
+
+window.addEventListener('resize', updateScale);
+// Initial scale
+updateScale();
+
 window.addEventListener('message', function(event) {
   try {
     var data = JSON.parse(event.data);
@@ -286,6 +256,7 @@ window.addEventListener('message', function(event) {
       }
       
       screenContent.innerHTML = data.innerContent;
+      updateScale();
     }
   } catch (e) {}
 });
@@ -296,31 +267,19 @@ window.addEventListener('message', function(event) {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isLandscape =
-            widget.selectedProject?.isVideoLandscape == true;
-
-        // Base logical size of the iframe. We use minimal padding around the 
-        // 340x700 phone to eliminate empty spaces while keeping shadows intact.
-        final double baseWidth = isLandscape ? 730.0 : 370.0;
-        final double baseHeight = isLandscape ? 370.0 : 730.0;
-
-        final double scaleX = constraints.maxWidth / baseWidth;
-        final double scaleY = constraints.maxHeight / baseHeight;
-        final double scale = scaleX < scaleY ? scaleX : scaleY;
-
-        return Center(
-          child: Transform.scale(
-            scale: scale,
-            child: SizedBox(
-              width: baseWidth,
-              height: baseHeight,
-              child: HtmlElementView(viewType: _viewType),
+    return Stack(
+      children: [
+        SizedBox.expand(
+          child: HtmlElementView(viewType: _viewType),
+        ),
+        if (widget.selectedProject?.hasVideo == true)
+          Positioned.fill(
+            child: PointerInterceptor(
+              intercepting: true,
+              child: const SizedBox.expand(),
             ),
           ),
-        );
-      },
+      ],
     );
   }
 }

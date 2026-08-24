@@ -11,6 +11,8 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../portfolio_cubit.dart';
 import '../widgets/project_card.dart';
 import '../widgets/add_project_dialog.dart';
+import '../widgets/section_editors.dart';
+import '../../domain/portfolio_data.dart';
 import 'package:my_portfolio/l10n/app_localizations.dart' as l10n;
 
 class HomePage extends StatefulWidget {
@@ -22,6 +24,41 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
+  bool _isReorderMode = false;
+  
+  // Variables for dynamic phone preview alignment
+  final GlobalKey _projectsWrapKey = GlobalKey();
+  final Map<String, GlobalKey> _projectCardKeys = {};
+  double _phoneTopMargin = 0.0;
+  bool _isAutoScrolling = false;
+
+  void _recalculatePhoneMargin(String? selectedProjectId) {
+    if (selectedProjectId == null || !mounted) return;
+    final wrapContext = _projectsWrapKey.currentContext;
+    final cardContext = _projectCardKeys[selectedProjectId]?.currentContext;
+    if (wrapContext != null && cardContext != null) {
+      final wrapBox = wrapContext.findRenderObject() as RenderBox?;
+      final cardBox = cardContext.findRenderObject() as RenderBox?;
+      if (wrapBox != null && cardBox != null) {
+        final offset = cardBox.localToGlobal(Offset.zero, ancestor: wrapBox);
+        if ((_phoneTopMargin - offset.dy).abs() > 1.0) {
+          setState(() {
+            _phoneTopMargin = offset.dy;
+          });
+          
+          // If layout shifted while auto-scrolling, correct the scroll trajectory!
+          if (_isAutoScrolling) {
+            Scrollable.ensureVisible(
+              cardContext,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              alignment: 0.15,
+            );
+          }
+        }
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -53,41 +90,97 @@ class _HomePageState extends State<HomePage> {
 
           // Main scrollable content
           Positioned.fill(
-            child: ListView(
-              controller: _scrollController,
-              children: [
-                _buildHeroSection(context),
-                _buildAboutSection(context),
-                _buildSkillsSection(context),
-                _buildProjectsSection(context), // Phone will be inside here
-                const SizedBox(height: 60),
-                _buildContactSection(context),
-                const SizedBox(height: 80),
-              ],
+            child: BlocBuilder<PortfolioCubit, PortfolioState>(
+              builder: (context, state) {
+                if (state is PortfolioLoaded) {
+                  final data = state.portfolioData;
+                  return ListView(
+                    controller: _scrollController,
+                    children: [
+                      _buildHeroSection(context, data.hero),
+                      _buildAboutSection(context, data.about),
+                      _buildSkillsSection(context, data.skills),
+                      _buildExperienceSection(context, data.experience),
+                      _buildProjectsSection(
+                        context,
+                      ), // Phone will be inside here
+                      const SizedBox(height: 60),
+                      _buildContactSection(context, data.contact),
+                      const SizedBox(height: 80),
+                    ],
+                  );
+                }
+                return const Center(
+                  child: CircularProgressIndicator(color: _cyan),
+                );
+              },
             ),
           ),
         ],
       ),
       floatingActionButton: kDebugMode
-          ? FloatingActionButton(
-              onPressed: () async {
-                final result = await showDialog(
-                  context: context,
-                  builder: (context) => const AddProjectDialog(),
-                );
-                if (result != null && context.mounted) {
-                  context.read<PortfolioCubit>().addProject(result);
-                }
-              },
-              backgroundColor: _cyan,
-              child: const Icon(Icons.add, color: Colors.black),
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton(
+                  heroTag: 'reorder',
+                  onPressed: () {
+                    if (_isReorderMode) {
+                      // Turning off -> save to Firebase
+                      context.read<PortfolioCubit>().saveReorder();
+                    }
+                    setState(() {
+                      _isReorderMode = !_isReorderMode;
+                    });
+                  },
+                  backgroundColor: _isReorderMode
+                      ? Colors.orange
+                      : Colors.grey[800],
+                  child: Icon(
+                    _isReorderMode ? Icons.save : Icons.reorder,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FloatingActionButton(
+                  heroTag: 'add',
+                  onPressed: () async {
+                    final result = await showDialog(
+                      context: context,
+                      builder: (context) => const AddProjectDialog(),
+                    );
+                    if (result != null && context.mounted) {
+                      context.read<PortfolioCubit>().addProject(result);
+                    }
+                  },
+                  backgroundColor: _cyan,
+                  child: const Icon(Icons.add, color: Colors.black),
+                ),
+              ],
             )
           : null,
     );
   }
 
+  Widget _buildEditableWrapper(Widget child, VoidCallback onEdit) {
+    if (!kDebugMode) return child;
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          top: 0,
+          right: 0,
+          child: IconButton(
+            icon: const Icon(Icons.edit, color: Colors.cyan),
+            onPressed: onEdit,
+          ),
+        ),
+      ],
+    );
+  }
+
   // ── HERO ──────────────────────────────────────────────────────────────────
-  Widget _buildHeroSection(BuildContext context) {
+  Widget _buildHeroSection(BuildContext context, HeroSectionData data) {
     final localizations = l10n.AppLocalizations.of(context);
     final size = MediaQuery.of(context).size;
     final isMobile = size.width < 900;
@@ -104,7 +197,7 @@ class _HomePageState extends State<HomePage> {
 
         // Name — gradient
         Text(
-          localizations?.appTitle ?? 'Shady Atef',
+          data.name,
           textAlign: isMobile ? TextAlign.center : TextAlign.start,
           style: TextStyle(
             fontSize: isMobile ? 48 : 76,
@@ -128,24 +221,15 @@ class _HomePageState extends State<HomePage> {
             ),
             textAlign: isMobile ? TextAlign.center : TextAlign.start,
             child: AnimatedTextKit(
-              animatedTexts: [
-                TypewriterAnimatedText(
-                  localizations?.heroTitle ??
-                      'Flutter Tech Lead & Software Engineer',
-                  speed: const Duration(milliseconds: 75),
-                  textAlign: isMobile ? TextAlign.center : TextAlign.start,
-                ),
-                TypewriterAnimatedText(
-                  'Clean Architecture Specialist',
-                  speed: const Duration(milliseconds: 75),
-                  textAlign: isMobile ? TextAlign.center : TextAlign.start,
-                ),
-                TypewriterAnimatedText(
-                  'Building Scalable Mobile & Web Apps',
-                  speed: const Duration(milliseconds: 75),
-                  textAlign: isMobile ? TextAlign.center : TextAlign.start,
-                ),
-              ],
+              animatedTexts: data.subtitles
+                  .map(
+                    (subtitle) => TypewriterAnimatedText(
+                      subtitle,
+                      speed: const Duration(milliseconds: 75),
+                      textAlign: isMobile ? TextAlign.center : TextAlign.start,
+                    ),
+                  )
+                  .toList(),
               repeatForever: true,
             ),
           ),
@@ -184,95 +268,120 @@ class _HomePageState extends State<HomePage> {
       ],
     );
 
-    return Container(
-      constraints: BoxConstraints(minHeight: size.height),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Aurora glow blobs behind everything
-          // Positioned(
-          //   top: -120,
-          //   left: -100,
-          //   child: _buildAuroraBlob(isMobile ? 300 : 500, _cyan, 0.06),
-          // ),
-          // Positioned(
-          //   top: 100,
-          //   right: -150,
-          //   child: _buildAuroraBlob(isMobile ? 400 : 600, _purple, 0.07),
-          // ),
-          // Positioned(
-          //   bottom: -80,
-          //   left: size.width * 0.3,
-          //   child: _buildAuroraBlob(isMobile ? 250 : 400, _green, 0.04),
-          // ),
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 24 : 60,
-              vertical: isMobile ? 100 : 0,
-            ),
-            child: isMobile
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildProfileImage(isMobile: true),
-                      const SizedBox(height: 48),
-                      textContent,
-                      const SizedBox(height: 100), // Space for scroll indicator
-                    ],
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      textContent,
-                      _buildProfileImage(isMobile: false),
-                    ],
-                  ),
-          ),
-
-          // Scroll indicator
-          Positioned(
-            bottom: 32,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'SCROLL TO EXPLORE',
-                    style: TextStyle(
-                      color: Color(0xFF50506A),
-                      fontSize: 10,
-                      letterSpacing: 3,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: _cyan,
-                        size: 28,
+    return _buildEditableWrapper(
+      Center(
+        child: Container(
+          constraints: BoxConstraints(minHeight: size.height),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Aurora glow blobs behind everything
+              // Positioned(
+              //   top: -120,
+              //   left: -100,
+              //   child: _buildAuroraBlob(isMobile ? 300 : 500, _cyan, 0.06),
+              // ),
+              // Positioned(
+              //   top: 100,
+              //   right: -150,
+              //   child: _buildAuroraBlob(isMobile ? 400 : 600, _purple, 0.07),
+              // ),
+              // Positioned(
+              //   bottom: -80,
+              //   left: size.width * 0.3,
+              //   child: _buildAuroraBlob(isMobile ? 250 : 400, _green, 0.04),
+              // ),
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 24 : 60,
+                  vertical: isMobile ? 100 : 0,
+                ),
+                child: isMobile
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildProfileImage(isMobile: true),
+                          const SizedBox(height: 48),
+                          textContent,
+                          const SizedBox(
+                            height: 100,
+                          ), // Space for scroll indicator
+                        ],
                       )
-                      .animate(onPlay: (c) => c.repeat())
-                      .moveY(
-                        begin: 0,
-                        end: 7,
-                        duration: 750.ms,
-                        curve: Curves.easeInOut,
-                      )
-                      .then()
-                      .moveY(
-                        begin: 7,
-                        end: 0,
-                        duration: 750.ms,
-                        curve: Curves.easeInOut,
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          textContent,
+                          _buildProfileImage(isMobile: false),
+                        ],
                       ),
-                ],
               ),
-            ).animate().fadeIn(delay: 1000.ms),
+
+              // Scroll indicator
+              Positioned(
+                bottom: 32,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'SCROLL TO EXPLORE',
+                        style: TextStyle(
+                          color: Color(0xFF50506A),
+                          fontSize: 10,
+                          letterSpacing: 3,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: _cyan,
+                            size: 28,
+                          )
+                          .animate(onPlay: (c) => c.repeat())
+                          .moveY(
+                            begin: 0,
+                            end: 7,
+                            duration: 750.ms,
+                            curve: Curves.easeInOut,
+                          )
+                          .then()
+                          .moveY(
+                            begin: 7,
+                            end: 0,
+                            duration: 750.ms,
+                            curve: Curves.easeInOut,
+                          ),
+                    ],
+                  ),
+                ).animate().fadeIn(delay: 1000.ms),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
+      () async {
+        final state = context.read<PortfolioCubit>().state;
+        if (state is PortfolioLoaded) {
+          final result = await showDialog<HeroSectionData>(
+            context: context,
+            builder: (context) => EditHeroDialog(data: data),
+          );
+          if (result != null && context.mounted) {
+            final newData = PortfolioData(
+              hero: result,
+              about: state.portfolioData.about,
+              skills: state.portfolioData.skills,
+              experience: state.portfolioData.experience,
+              contact: state.portfolioData.contact,
+            );
+            context.read<PortfolioCubit>().updatePortfolioData(newData);
+          }
+        }
+      },
     );
   }
 
@@ -589,7 +698,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ── ABOUT ─────────────────────────────────────────────────────────────────
-  Widget _buildAboutSection(BuildContext context) {
+  Widget _buildAboutSection(BuildContext context, AboutSectionData data) {
     final size = MediaQuery.of(context).size;
     final isMobile = size.width < 900;
 
@@ -599,7 +708,7 @@ class _HomePageState extends State<HomePage> {
           : CrossAxisAlignment.start,
       children: [
         Text(
-          'I am a Software Engineer and Flutter Tech Lead passionate about building scalable, high-performance applications using Clean Architecture.',
+          data.paragraph1,
           textAlign: isMobile ? TextAlign.center : TextAlign.start,
           style: TextStyle(
             fontSize: isMobile ? 16 : 18,
@@ -609,7 +718,7 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 20),
         Text(
-          'With a background in leading technical committees like RoboTech, I specialize in crafting seamless user experiences and robust backends. I love turning complex problems into elegant, efficient solutions.',
+          data.paragraph2,
           textAlign: isMobile ? TextAlign.center : TextAlign.start,
           style: TextStyle(
             fontSize: isMobile ? 15 : 16,
@@ -622,12 +731,7 @@ class _HomePageState extends State<HomePage> {
           spacing: 10,
           runSpacing: 10,
           alignment: isMobile ? WrapAlignment.center : WrapAlignment.start,
-          children: [
-            'Clean Architecture',
-            'TDD',
-            'Open Source',
-            'Tech Lead',
-          ].map(_buildTag).toList(),
+          children: data.tags.map(_buildTag).toList(),
         ),
       ],
     );
@@ -636,40 +740,66 @@ class _HomePageState extends State<HomePage> {
       spacing: 14,
       runSpacing: 14,
       alignment: isMobile ? WrapAlignment.center : WrapAlignment.start,
-      children: [
-        _buildStatCard('3+', 'Years\nExperience', _cyan),
-        _buildStatCard('15+', 'Projects\nBuilt', _purple),
-        _buildStatCard('8+', 'Tech\nSkills', _green),
-        _buildStatCard('∞', 'Clean\nCode', const Color(0xFFFFCA28)),
-      ],
+      children: data.stats.map((stat) {
+        return _buildStatCard(
+          stat.number,
+          stat.label.replaceAll('\\n', '\n'),
+          Color(int.parse(stat.colorHex)),
+        );
+      }).toList(),
     );
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 24 : 60,
-        vertical: isMobile ? 60 : 90,
+    return _buildEditableWrapper(
+      Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 24 : 60,
+          vertical: isMobile ? 60 : 90,
+        ),
+        child: Column(
+          crossAxisAlignment: isMobile
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader('About Me', 'WHO AM I', isMobile: isMobile),
+            const SizedBox(height: 56),
+            isMobile
+                ? Column(
+                    children: [
+                      aboutText,
+                      const SizedBox(height: 48),
+                      statsCards,
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 5, child: aboutText),
+                      const SizedBox(width: 60),
+                      Expanded(flex: 3, child: statsCards),
+                    ],
+                  ),
+          ],
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: isMobile
-            ? CrossAxisAlignment.center
-            : CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader('About Me', 'WHO AM I', isMobile: isMobile),
-          const SizedBox(height: 56),
-          isMobile
-              ? Column(
-                  children: [aboutText, const SizedBox(height: 48), statsCards],
-                )
-              : Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 5, child: aboutText),
-                    const SizedBox(width: 60),
-                    Expanded(flex: 3, child: statsCards),
-                  ],
-                ),
-        ],
-      ),
+      () async {
+        final state = context.read<PortfolioCubit>().state;
+        if (state is PortfolioLoaded) {
+          final result = await showDialog<AboutSectionData>(
+            context: context,
+            builder: (context) => EditAboutDialog(data: data),
+          );
+          if (result != null && context.mounted) {
+            final newData = PortfolioData(
+              hero: state.portfolioData.hero,
+              about: result,
+              skills: state.portfolioData.skills,
+              experience: state.portfolioData.experience,
+              contact: state.portfolioData.contact,
+            );
+            context.read<PortfolioCubit>().updatePortfolioData(newData);
+          }
+        }
+      },
     );
   }
 
@@ -732,58 +862,268 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ── SKILLS ────────────────────────────────────────────────────────────────
-  Widget _buildSkillsSection(BuildContext context) {
+  Widget _buildSkillsSection(BuildContext context, SkillsSectionData data) {
     final isMobile = MediaQuery.of(context).size.width < 900;
-    final skills = <(String, IconData, double, Color)>[
-      ('Flutter', Icons.phone_android_rounded, 0.95, const Color(0xFF54C5F8)),
-      ('Dart', Icons.code_rounded, 0.95, const Color(0xFF54C5F8)),
-      ('Clean Arch', Icons.account_tree_rounded, 0.90, _purple),
-      ('.NET Core', Icons.storage_rounded, 0.80, const Color(0xFF9B59B6)),
-      (
-        'Firebase',
-        Icons.local_fire_department_rounded,
-        0.85,
-        const Color(0xFFFFCA28),
-      ),
-      ('BLoC/Cubit', Icons.widgets_rounded, 0.92, _cyan),
-      ('SQLite', Icons.table_chart_rounded, 0.80, _green),
-      (
-        'UI/UX Design',
-        Icons.design_services_rounded,
-        0.85,
-        const Color(0xFFE91E63),
-      ),
-    ];
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 24 : 60,
-        vertical: isMobile ? 60 : 90,
-      ),
-      child: Column(
-        crossAxisAlignment: isMobile
-            ? CrossAxisAlignment.center
-            : CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader('Tech Stack', 'WHAT I USE', isMobile: isMobile),
-          const SizedBox(height: 56),
-          Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            alignment: isMobile ? WrapAlignment.center : WrapAlignment.start,
-            children: skills
-                .asMap()
-                .entries
-                .map(
-                  (e) => AnimatedSkillChip(
-                    label: e.value.$1,
-                    icon: e.value.$2,
-                    proficiency: e.value.$3,
-                    color: e.value.$4,
-                    index: e.key,
+    return _buildEditableWrapper(
+      Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 24 : 60,
+          vertical: isMobile ? 60 : 90,
+        ),
+        child: Column(
+          crossAxisAlignment: isMobile
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader('Tech Stack', 'WHAT I USE', isMobile: isMobile),
+            const SizedBox(height: 56),
+            Wrap(
+              spacing: 60,
+              runSpacing: 40,
+              alignment: isMobile ? WrapAlignment.center : WrapAlignment.start,
+              crossAxisAlignment: WrapCrossAlignment.start,
+              children: data.categories.map((cat) {
+                return SizedBox(
+                  width: isMobile ? double.infinity : null,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: isMobile
+                        ? CrossAxisAlignment.center
+                        : CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cat.name,
+                        style: TextStyle(
+                          color: Color(int.parse(cat.colorHex)),
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 14,
+                        runSpacing: 14,
+                        alignment: isMobile
+                            ? WrapAlignment.center
+                            : WrapAlignment.start,
+                        children: cat.skills
+                            .asMap()
+                            .entries
+                            .map(
+                              (e) => AnimatedSkillChip(
+                                label: e.value.name,
+                                icon: Icons.code, // default icon
+                                proficiency: e.value.proficiency,
+                                color: Color(int.parse(cat.colorHex)),
+                                index: e.key,
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
                   ),
-                )
-                .toList(),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+      () async {
+        final state = context.read<PortfolioCubit>().state;
+        if (state is PortfolioLoaded) {
+          final result = await showDialog<SkillsSectionData>(
+            context: context,
+            builder: (context) => EditSkillsDialog(data: data),
+          );
+          if (result != null && context.mounted) {
+            final newData = PortfolioData(
+              hero: state.portfolioData.hero,
+              about: state.portfolioData.about,
+              skills: result,
+              experience: state.portfolioData.experience,
+              contact: state.portfolioData.contact,
+            );
+            context.read<PortfolioCubit>().updatePortfolioData(newData);
+          }
+        }
+      },
+    );
+  }
+
+  // ── EXPERIENCE ────────────────────────────────────────────────────────────
+  Widget _buildExperienceSection(
+    BuildContext context,
+    ExperienceSectionData data,
+  ) {
+    final size = MediaQuery.of(context).size;
+    final isMobile = size.width < 900;
+
+    return _buildEditableWrapper(
+      Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 24 : 60,
+          vertical: isMobile ? 40 : 60,
+        ),
+        child: Column(
+          crossAxisAlignment: isMobile
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader('Experience', 'MY JOURNEY', isMobile: isMobile),
+            const SizedBox(height: 56),
+            ...data.items.asMap().entries.map((entry) {
+              final index = entry.key;
+              final item = entry.value;
+              return _buildExperienceTimeline(
+                isMobile: isMobile,
+                role: item.role,
+                company: item.company,
+                duration: item.duration,
+                bullets: [
+                  item.description,
+                ], // Treat description as single bullet for simplicity, or we could split by newline if we want
+                isLast: index == data.items.length - 1,
+              );
+            }),
+          ],
+        ),
+      ),
+      () async {
+        final state = context.read<PortfolioCubit>().state;
+        if (state is PortfolioLoaded) {
+          final result = await showDialog<ExperienceSectionData>(
+            context: context,
+            builder: (context) => EditExperienceDialog(data: data),
+          );
+          if (result != null && context.mounted) {
+            final newData = PortfolioData(
+              hero: state.portfolioData.hero,
+              about: state.portfolioData.about,
+              skills: state.portfolioData.skills,
+              experience: result,
+              contact: state.portfolioData.contact,
+            );
+            context.read<PortfolioCubit>().updatePortfolioData(newData);
+          }
+        }
+      },
+    );
+  }
+
+  Widget _buildExperienceTimeline({
+    required bool isMobile,
+    required String role,
+    required String company,
+    required String duration,
+    required List<String> bullets,
+    required bool isLast,
+  }) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Timeline graphics
+          SizedBox(
+            width: 30,
+            child: Column(
+              children: [
+                Container(
+                  width: 16,
+                  height: 30,
+                  margin: const EdgeInsets.only(top: 6),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _cyan, width: 3),
+                    color: _bg,
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [_cyan, _purple.withOpacity(0.3)],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  const Expanded(child: SizedBox()),
+              ],
+            ),
+          ),
+          const SizedBox(width: 20),
+          // Content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 40.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '$role ',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '@ $company',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                            color: _cyan,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    duration,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFFA0A0B0),
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ...bullets.map(
+                    (b) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '▹ ',
+                            style: TextStyle(color: _cyan, fontSize: 16),
+                          ),
+                          Expanded(
+                            child: Text(
+                              b,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                height: 1.5,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -867,7 +1207,9 @@ class _HomePageState extends State<HomePage> {
       final project = entry.value;
       final isSelected = state.selectedProject?.id == project.id;
 
+      final key = _projectCardKeys.putIfAbsent(project.id, () => GlobalKey());
       return ProjectCard(
+        key: key,
         project: project,
         accentColor: index % 2 == 0
             ? const Color(0xFF00F5FF)
@@ -876,9 +1218,23 @@ class _HomePageState extends State<HomePage> {
         index: index,
         onTap: () {
           context.read<PortfolioCubit>().selectProject(project);
-          if (isMobile) {
-            // Optionally scroll to top of section on mobile to see the phone
-          }
+          
+          _isAutoScrolling = true;
+          Future.delayed(const Duration(milliseconds: 800), () {
+            if (mounted) _isAutoScrolling = false;
+          });
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final cardContext = _projectCardKeys[project.id]?.currentContext;
+            if (cardContext != null) {
+              Scrollable.ensureVisible(
+                cardContext,
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.fastOutSlowIn,
+                alignment: 0.15, // Align slightly below the top of the screen
+              );
+            }
+          });
         },
         onEdit: kDebugMode
             ? () async {
@@ -927,22 +1283,11 @@ class _HomePageState extends State<HomePage> {
       );
     }).toList();
 
-    final projectsList = LayoutBuilder(
-      builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth;
-        int crossAxisCount = availableWidth > 850 ? 2 : 1;
-        final double itemWidth =
-            (availableWidth - (crossAxisCount - 1) * 24.0) / crossAxisCount;
-
-        return Wrap(
-          spacing: 24.0,
-          runSpacing: 24.0,
-          children: projectCards.map((card) {
-            return SizedBox(width: itemWidth, child: card);
-          }).toList(),
-        );
-      },
-    );
+    final double phonePreviewWidth = isMobile
+        ? double.infinity
+        : (state.selectedProject?.isVideoLandscape == true
+              ? (MediaQuery.of(context).size.width * 0.60)
+              : 400);
 
     final phonePreview = AnimatedSwitcher(
       duration: const Duration(milliseconds: 400),
@@ -963,143 +1308,303 @@ class _HomePageState extends State<HomePage> {
                 left: isMobile ? 0 : 40,
                 bottom: isMobile ? 40 : 0,
               ),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 600),
-                curve: Curves.fastOutSlowIn,
-                height: isMobile
-                    ? 700
-                    : (state.selectedProject!.isVideoLandscape
-                          ? (MediaQuery.of(context).size.height * 0.65)
-                          : 700),
-                width: isMobile
-                    ? double.infinity
-                    : (state.selectedProject!.isVideoLandscape
-                          ? (MediaQuery.of(context).size.width * 0.60)
-                          : 400),
-                child: Mobile3DFrameWidget(
-                  scrollController: _scrollController,
-                  selectedProject: state.selectedProject,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.fastOutSlowIn,
+                    height: isMobile
+                        ? 700
+                        : (state.selectedProject!.isVideoLandscape
+                              ? (MediaQuery.of(context).size.height * 0.65)
+                              : 700),
+                    width: phonePreviewWidth,
+                    child: Mobile3DFrameWidget(
+                      scrollController: _scrollController,
+                      selectedProject: state.selectedProject,
+                    ),
+                  ),
+                  ...state.selectedProject!.sections.map((section) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 16.0),
+                      child: SizedBox(
+                        width: phonePreviewWidth,
+                        child: _ExpandableListWidget(
+                          title: section.title,
+                          items: section.items,
+                        ),
+                      ),
+                    );
+                  }),
+                ],
               ),
             ),
     );
 
+    final projectsList = LayoutBuilder(
+      builder: (context, constraints) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _recalculatePhoneMargin(state.selectedProject?.id);
+        });
+
+        final availableWidth = constraints.maxWidth;
+        int crossAxisCount = availableWidth > 850 ? 2 : 1;
+        final double itemWidth =
+            (availableWidth - (crossAxisCount - 1) * 24.0) / crossAxisCount;
+
+        return Wrap(
+          spacing: 24.0,
+          runSpacing: 24.0,
+          children: projectCards.asMap().entries.expand((entry) {
+            final index = entry.key;
+            final card = entry.value;
+
+            Widget child = SizedBox(width: itemWidth, child: card);
+
+            if (_isReorderMode) {
+              child = Stack(
+                children: [
+                  child,
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Row(
+                      children: [
+                        if (index > 0)
+                          IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back_ios_rounded,
+                              size: 20,
+                            ),
+                            color: Colors.orange,
+                            onPressed: () {
+                              context.read<PortfolioCubit>().reorderProjects(
+                                index,
+                                index - 1,
+                              );
+                            },
+                          ),
+                        if (index < projectCards.length - 1)
+                          IconButton(
+                            icon: const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 20,
+                            ),
+                            color: Colors.orange,
+                            onPressed: () {
+                              context.read<PortfolioCubit>().reorderProjects(
+                                index,
+                                index + 2,
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            final isSelected = state.selectedProject?.id == state.projects[index].id;
+            if (isMobile && isSelected) {
+              return [
+                child,
+                SizedBox(width: double.infinity, child: phonePreview)
+              ];
+            }
+
+            return [child];
+          }).toList(),
+        );
+      },
+    );
+
     if (isMobile) {
-      return Column(children: [phonePreview, projectsList]);
+      return projectsList;
     } else {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: projectsList),
-          phonePreview,
+          Expanded(
+            child: KeyedSubtree(
+              key: _projectsWrapKey,
+              child: projectsList,
+            ),
+          ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.fastOutSlowIn,
+            margin: EdgeInsets.only(top: _phoneTopMargin),
+            child: phonePreview,
+          ),
         ],
       );
     }
   }
 
   // ── CONTACT ───────────────────────────────────────────────────────────────
-  Widget _buildContactSection(BuildContext context) {
+  Widget _buildContactSection(BuildContext context, ContactSectionData data) {
     final isMobile = MediaQuery.of(context).size.width < 900;
 
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: isMobile ? 20 : 60),
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 24 : 60,
-        vertical: isMobile ? 40 : 70,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            // ignore: deprecated_member_use
-            _cyan.withOpacity(0.07),
-            // ignore: deprecated_member_use
-            _purple.withOpacity(0.07),
-          ],
-        ),
-        border: Border.all(
-          // ignore: deprecated_member_use
-          color: _cyan.withOpacity(0.14),
-        ),
-        boxShadow: [
-          BoxShadow(
-            // ignore: deprecated_member_use
-            color: _cyan.withOpacity(0.04),
-            blurRadius: 60,
-            spreadRadius: 10,
+    return _buildEditableWrapper(
+      Center(
+        child: Container(
+          margin: EdgeInsets.symmetric(horizontal: isMobile ? 20 : 60),
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 24 : 60,
+            vertical: isMobile ? 40 : 70,
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'GET IN TOUCH',
-            style: TextStyle(
-              color: _cyan,
-              fontSize: 12,
-              letterSpacing: 3.5,
-              fontWeight: FontWeight.w700,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                // ignore: deprecated_member_use
+                _cyan.withOpacity(0.07),
+                // ignore: deprecated_member_use
+                _purple.withOpacity(0.07),
+              ],
             ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            "Let's Build Something\nAmazing Together",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: isMobile ? 32 : 40,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              height: 1.2,
-              letterSpacing: -0.5,
+            border: Border.all(
+              // ignore: deprecated_member_use
+              color: _cyan.withOpacity(0.14),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Open to new opportunities, collaborations, and exciting projects.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: const Color(0xFF6E6E80),
-              fontSize: isMobile ? 15 : 16,
-              height: 1.5,
-            ),
-          ),
-          SizedBox(height: isMobile ? 32 : 50),
-          Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            alignment: WrapAlignment.center,
-            children: [
-              _buildSocialButton(
-                Icons.email_outlined,
-                'Email',
-                'shadyatefbakry@gmail.com',
-                _cyan,
-                () => launchUrl(
-                  Uri.parse(
-                    'https://mail.google.com/mail/?view=cm&fs=1&to=shadyatefbakry@gmail.com',
-                  ),
-                ),
-              ),
-              _buildSocialButton(
-                Icons.code_rounded,
-                'GitHub',
-                'github.com/shady-ateff',
-                _purple,
-                () => launchUrl(Uri.parse('https://github.com/shady-ateff')),
-              ),
-              _buildSocialButton(
-                Icons.person_rounded,
-                'LinkedIn',
-                'linkedin.com/in/shady-atef',
-                const Color(0xFF0A66C2),
-                () => launchUrl(Uri.parse('https://linkedin.com/in/shadyatef')),
+            boxShadow: [
+              BoxShadow(
+                // ignore: deprecated_member_use
+                color: _cyan.withOpacity(0.04),
+                blurRadius: 60,
+                spreadRadius: 10,
               ),
             ],
           ),
-        ],
+          child: Column(
+            children: [
+              const Text(
+                'GET IN TOUCH',
+                style: TextStyle(
+                  color: _cyan,
+                  fontSize: 12,
+                  letterSpacing: 3.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                "Let's Build Something\nAmazing Together",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: isMobile ? 32 : 40,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  height: 1.2,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Open to new opportunities, collaborations, and exciting projects.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: const Color(0xFF6E6E80),
+                  fontSize: isMobile ? 15 : 16,
+                  height: 1.5,
+                ),
+              ),
+              SizedBox(height: isMobile ? 32 : 50),
+              Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                alignment: WrapAlignment.center,
+                children: [
+                  if (data.email.isNotEmpty)
+                    _buildSocialButton(
+                      Icons.email_outlined,
+                      'Email',
+                      data.email,
+                      _cyan,
+                      () => launchUrl(
+                        Uri.parse(
+                          'https://mail.google.com/mail/?view=cm&fs=1&to=${data.email}',
+                        ),
+                      ),
+                    ),
+                  if (data.githubUrl.isNotEmpty)
+                    _buildSocialButton(
+                      Icons.code_rounded,
+                      'GitHub',
+                      data.githubUrl
+                          .replaceAll('https://', '')
+                          .replaceAll('http://', ''),
+                      _purple,
+                      () => launchUrl(Uri.parse(data.githubUrl)),
+                    ),
+                  if (data.linkedinUrl.isNotEmpty)
+                    _buildSocialButton(
+                      Icons.person_rounded,
+                      'LinkedIn',
+                      data.linkedinUrl
+                          .replaceAll('https://', '')
+                          .replaceAll('http://', ''),
+                      const Color(0xFF0A66C2),
+                      () => launchUrl(Uri.parse(data.linkedinUrl)),
+                    ),
+                  if (data.youtubeUrl.isNotEmpty)
+                    _buildSocialButton(
+                      Icons.play_circle_outline_rounded,
+                      'YouTube',
+                      data.youtubeUrl
+                          .replaceAll('https://', '')
+                          .replaceAll('http://', '')
+                          .replaceAll('www.', ''),
+                      const Color(0xFFFF0000),
+                      () => launchUrl(Uri.parse(data.youtubeUrl)),
+                    ),
+                  if (data.phone.isNotEmpty)
+                    _buildSocialButton(
+                      Icons.chat_outlined,
+                      'WhatsApp',
+                      data.phone,
+                      const Color(0xFF25D366),
+                      () => launchUrl(
+                        Uri.parse('https://wa.me/${data.phone.replaceAll(RegExp(r'[^\d+]'), '')}'),
+                      ),
+                    ),
+                  if (data.cvUrl.isNotEmpty)
+                    _buildSocialButton(
+                      Icons.picture_as_pdf,
+                      'Resume',
+                      'Download CV',
+                      Colors.redAccent,
+                      () => launchUrl(Uri.parse(data.cvUrl)),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
+      () async {
+        final state = context.read<PortfolioCubit>().state;
+        if (state is PortfolioLoaded) {
+          final result = await showDialog<ContactSectionData>(
+            context: context,
+            builder: (context) => EditContactDialog(data: data),
+          );
+          if (result != null && context.mounted) {
+            final newData = PortfolioData(
+              hero: state.portfolioData.hero,
+              about: state.portfolioData.about,
+              skills: state.portfolioData.skills,
+              experience: state.portfolioData.experience,
+              contact: result,
+            );
+            context.read<PortfolioCubit>().updatePortfolioData(newData);
+          }
+        }
+      },
     );
   }
 
@@ -1188,4 +1693,103 @@ class _TopHalfUnclippedClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => true;
+}
+
+class _ExpandableListWidget extends StatefulWidget {
+  final String title;
+  final List<String> items;
+
+  const _ExpandableListWidget({required this.title, required this.items});
+
+  @override
+  State<_ExpandableListWidget> createState() => _ExpandableListWidgetState();
+}
+
+class _ExpandableListWidgetState extends State<_ExpandableListWidget> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      decoration: BoxDecoration(
+        color: const Color(0xFF131325),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF00F5FF).withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _isExpanded = !_isExpanded),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12.0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.title,
+                    style: const TextStyle(
+                      color: Color(0xFF00F5FF),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Icon(
+                    _isExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: const Color(0xFF00F5FF),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_isExpanded)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 16.0,
+                right: 16.0,
+                bottom: 16.0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: widget.items
+                    .map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '• ',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                item,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

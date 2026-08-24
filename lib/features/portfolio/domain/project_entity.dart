@@ -1,9 +1,33 @@
+class ProjectSection {
+  final String title;
+  final List<String> items;
+
+  const ProjectSection({
+    required this.title,
+    required this.items,
+  });
+
+  factory ProjectSection.fromJson(Map<String, dynamic> json) {
+    return ProjectSection(
+      title: json['title'] ?? '',
+      items: List<String>.from(json['items'] ?? []),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'items': items,
+    };
+  }
+}
+
 class ProjectEntity {
   final String id;
   final String name;
   final String description;
   final int starsCount;
-  final String repositoryUrl;
+  final String? repositoryUrl;
   final String? liveBuildUrl;
   final List<String> topics;
   final String? language;
@@ -13,14 +37,15 @@ class ProjectEntity {
   final bool isVideoLandscape;
   final String? googlePlayUrl;
   final String? appStoreUrl;
-  final List<String> usageTips;
+  final List<ProjectSection> sections;
+  final int order;
 
   const ProjectEntity({
     required this.id,
     required this.name,
     required this.description,
     required this.starsCount,
-    required this.repositoryUrl,
+    this.repositoryUrl,
     this.liveBuildUrl,
     required this.topics,
     this.language,
@@ -30,9 +55,11 @@ class ProjectEntity {
     this.isVideoLandscape = false,
     this.googlePlayUrl,
     this.appStoreUrl,
-    this.usageTips = const [],
+    this.sections = const [],
+    this.order = 0,
   });
 
   bool get canExecuteLive => liveBuildUrl != null && liveBuildUrl!.isNotEmpty;
   bool get hasVideo => youtubeVideoId != null && youtubeVideoId!.isNotEmpty;
+  bool get hasRepository => repositoryUrl != null && repositoryUrl!.isNotEmpty;
 }

@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../domain/project_entity.dart';
+import '../domain/portfolio_data.dart';
 
 abstract class ProjectsRepository {
   Future<List<ProjectEntity>> fetchProjects();
   Future<void> addProject(ProjectEntity project);
   Future<void> updateProject(ProjectEntity project);
   Future<void> deleteProject(String id);
+  Future<void> reorderProjects(List<ProjectEntity> projects);
+  Future<PortfolioData> fetchPortfolioData();
+  Future<void> updatePortfolioData(PortfolioData data);
 }
 
 class GithubProjectsRepository implements ProjectsRepository {
@@ -59,4 +63,21 @@ class GithubProjectsRepository implements ProjectsRepository {
   Future<void> deleteProject(String id) async {
     throw UnimplementedError('Cannot delete project from GitHub repository');
   }
+
+  @override
+  Future<void> reorderProjects(List<ProjectEntity> projects) async {}
+
+  @override
+  Future<PortfolioData> fetchPortfolioData() async {
+    return const PortfolioData(
+      hero: HeroSectionData(),
+      about: AboutSectionData(),
+      skills: SkillsSectionData(),
+      experience: ExperienceSectionData(),
+      contact: ContactSectionData(),
+    );
+  }
+
+  @override
+  Future<void> updatePortfolioData(PortfolioData data) async {}
 }

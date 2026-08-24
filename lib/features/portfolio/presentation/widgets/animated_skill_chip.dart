@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// Animated skill chip with icon, label, proficiency bar, and hover glow.
 class AnimatedSkillChip extends StatefulWidget {
@@ -25,6 +26,55 @@ class AnimatedSkillChip extends StatefulWidget {
 class _AnimatedSkillChipState extends State<AnimatedSkillChip> {
   bool _isHovered = false;
 
+  String get _skillIconUrl {
+    final name = widget.label.toLowerCase();
+    String iconId = '';
+    String style = 'ios'; // Outline style
+
+    // Brands
+    if (name.contains('flutter')) iconId = 'flutter';
+    else if (name.contains('dart')) iconId = 'dart';
+    else if (name.contains('firebase')) iconId = 'firebase';
+    else if (name.contains('postgres')) iconId = 'postgreesql';
+    else if (name.contains('node')) iconId = 'nodejs';
+    else if (name.contains('github')) iconId = 'github';
+    else if (name.contains('git')) iconId = 'git';
+    else if (name.contains('react')) iconId = 'react-native';
+    else if (name.contains('java') && !name.contains('javascript')) iconId = 'java-coffee-cup-logo';
+    else if (name.contains('python')) iconId = 'python';
+    else if (name.contains('docker')) iconId = 'docker';
+    else if (name.contains('aws')) iconId = 'amazon-web-services';
+    else if (name.contains('figma')) iconId = 'figma';
+    else if (name.contains('mongodb')) iconId = 'mongodb';
+    else if (name.contains('swift')) iconId = 'swift';
+    else if (name.contains('kotlin')) iconId = 'kotlin';
+    else if (name.contains('apple')) iconId = 'mac-os';
+    else if (name.contains('android')) iconId = 'android-os';
+    else if (name.contains('windows')) iconId = 'windows-10';
+    else if (name.contains('linux')) iconId = 'linux';
+    else if (name.contains('vue')) iconId = 'vue-js';
+    else if (name.contains('angular')) iconId = 'angularjs';
+    else if (name.contains('js') || name.contains('javascript')) iconId = 'javascript';
+    else if (name.contains('css')) iconId = 'css3';
+    else if (name.contains('html')) iconId = 'html-5';
+    
+    // Generics (Clean Architecture, Animations, etc)
+    else if (name.contains('clean')) iconId = 'layers'; // layers for architecture
+    else if (name.contains('animat')) iconId = 'magic-wand'; // magic wand for animations
+    else if (name.contains('state')) iconId = 'flow-chart'; // state management
+    else if (name.contains('platform')) iconId = 'bridge'; // platform channels
+    else if (name.contains('api')) iconId = 'api-settings'; // API
+    else if (name.contains('tdd') || name.contains('test')) iconId = 'test-tube';
+    else if (name.contains('agile') || name.contains('scrum')) iconId = 'sync';
+    else if (name.contains('ci/cd') || name.contains('pipeline')) iconId = 'services';
+
+    if (iconId.isNotEmpty) {
+      // Use ios style for outlined icons
+      return 'https://img.icons8.com/$style/96/FFFFFF/$iconId.png';
+    }
+    return '';
+  }
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -42,15 +92,12 @@ class _AnimatedSkillChipState extends State<AnimatedSkillChip> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              // ignore: deprecated_member_use
               color: widget.color.withOpacity(_isHovered ? 0.65 : 0.18),
             ),
-            // ignore: deprecated_member_use
             color: widget.color.withOpacity(_isHovered ? 0.11 : 0.05),
             boxShadow: _isHovered
                 ? [
                     BoxShadow(
-                      // ignore: deprecated_member_use
                       color: widget.color.withOpacity(0.22),
                       blurRadius: 22,
                       spreadRadius: 1,
@@ -62,7 +109,20 @@ class _AnimatedSkillChipState extends State<AnimatedSkillChip> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Icon
-              Icon(widget.icon, color: widget.color, size: 26),
+              if (_skillIconUrl.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.network(
+                    _skillIconUrl,
+                    width: 32,
+                    height: 32,
+                    fit: BoxFit.cover,
+                    color: widget.color,
+                    errorBuilder: (context, error, stackTrace) => Icon(widget.icon, color: widget.color, size: 26),
+                  ),
+                )
+              else
+                Icon(widget.icon, color: widget.color, size: 26),
               const SizedBox(height: 10),
 
               // Label

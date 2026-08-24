@@ -187,7 +187,7 @@ class _ProjectCardState extends State<ProjectCard> {
                     // Description
                     Text(
                       widget.project.description,
-                      maxLines: 3,
+                      maxLines: 5,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.55),
@@ -255,6 +255,8 @@ class _ProjectCardState extends State<ProjectCard> {
                           ),
                         ),
                         const Spacer(),
+                        if (widget.project.hasRepository)
+                          _buildStoreButton(icon: Icons.code_rounded, text: 'GitHub', url: widget.project.repositoryUrl!),
                         if (widget.project.googlePlayUrl?.isNotEmpty == true)
                           _buildStoreButton(icon: Icons.android_rounded, text: 'Play Store', url: widget.project.googlePlayUrl!),
                         if (widget.project.appStoreUrl?.isNotEmpty == true)
