@@ -23,7 +23,8 @@ class _ParticleBackgroundState extends State<ParticleBackground>
       duration: const Duration(seconds: 60),
     )..repeat();
     final rng = math.Random(42);
-    _particles = List.generate(65, (_) => _Particle.random(rng));
+    // Reduced particle count from 65 to 30 for massive performance boost on Web
+    _particles = List.generate(30, (_) => _Particle.random(rng));
   }
 
   @override
@@ -43,6 +44,8 @@ class _ParticleBackgroundState extends State<ParticleBackground>
         return CustomPaint(
           painter: _ParticlePainter(_particles),
           size: Size.infinite,
+          isComplex: false,
+          willChange: true,
         );
       },
     );
@@ -66,8 +69,8 @@ class _Particle {
     return _Particle(
       x: rng.nextDouble(),
       y: rng.nextDouble(),
-      vx: (rng.nextDouble() - 0.5) * 0.00007,
-      vy: (rng.nextDouble() - 0.5) * 0.00007,
+      vx: (rng.nextDouble() - 0.5) * 0.0001,
+      vy: (rng.nextDouble() - 0.5) * 0.0001,
       radius: rng.nextDouble() * 1.6 + 0.5,
       opacity: rng.nextDouble() * 0.45 + 0.1,
     );

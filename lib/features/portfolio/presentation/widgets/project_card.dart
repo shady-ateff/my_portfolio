@@ -65,9 +65,7 @@ class _ProjectCardState extends State<ProjectCard> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(22),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-              child: AnimatedContainer(
+            child: AnimatedContainer(
                 duration: const Duration(milliseconds: 280),
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -269,7 +267,6 @@ class _ProjectCardState extends State<ProjectCard> {
             ),
           ),
         ),
-      ),
     )
         .animate(delay: Duration(milliseconds: widget.index * 100))
         .fadeIn(duration: 500.ms)

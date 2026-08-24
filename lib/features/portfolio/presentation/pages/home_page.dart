@@ -77,12 +77,10 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: _bg,
       body: Stack(
         children: [
-          // Particle overlay (always visible now since we don't have a background phone)
+          // Particle overlay with RepaintBoundary to prevent full screen repaints
           Positioned.fill(
-            child: IgnorePointer(
-              child: AnimatedOpacity(
-                opacity: 1.0,
-                duration: const Duration(milliseconds: 600),
+            child: RepaintBoundary(
+              child: IgnorePointer(
                 child: const ParticleBackground(),
               ),
             ),
